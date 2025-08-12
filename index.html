@@ -526,7 +526,13 @@
     <script>
         let currentSection = 1;
         const totalSections = 8;
-        let apiKey = '';
+        
+        // ⚠️ WICHTIG: Ersetze diese URL mit deiner Cloudflare Worker URL ⚠️
+        // Format: https://worker-name.dein-username.workers.dev
+        const WORKER_API_URL = 'https://prompting-bot-api.DEIN-USERNAME.workers.dev'; // ← HIER EINSETZEN!
+        
+        // Speichere alle Chat-Nachrichten für Kontext
+        let chatHistory = [];
 
         function updateProgress() {
             const progress = (currentSection / totalSections) * 100;
@@ -563,33 +569,17 @@
             goToSection(8);
         }
 
-        function saveApiKey() {
-            const keyInput = document.getElementById('apiKey');
-            apiKey = keyInput.value.trim();
-            
-            if (apiKey) {
-                // Speichere im sessionStorage (nur für diese Sitzung)
-                sessionStorage.setItem('anthropic_api_key', apiKey);
-                alert('API-Key wurde erfolgreich gespeichert! Du kannst jetzt den Chatbot nutzen.');
-                keyInput.value = '';
-            } else {
-                alert('Bitte gib einen gültigen API-Key ein.');
-            }
-        }
-
         async function sendMessage() {
             const input = document.getElementById('chatInput');
             const message = input.value.trim();
+            const sendButton = document.getElementById('sendButton');
+            const buttonText = document.getElementById('buttonText');
             
             if (!message) return;
             
-            // Hole API-Key aus sessionStorage falls nicht gesetzt
-            if (!apiKey) {
-                apiKey = sessionStorage.getItem('anthropic_api_key') || '';
-            }
-            
-            if (!apiKey) {
-                alert('Bitte gib zuerst deinen API-Key ein!');
+            // Validierung
+            if (message.length > 1000) {
+                alert('Nachricht zu lang! Maximum: 1000 Zeichen');
                 return;
             }
 
@@ -601,42 +591,38 @@
             userMessage.textContent = message;
             messagesContainer.appendChild(userMessage);
             
+            // Füge zur Historie hinzu
+            chatHistory.push({ role: 'user', content: message });
+            
             input.value = '';
+            input.disabled = true;
+            sendButton.disabled = true;
+            buttonText.textContent = '⏳ Denkt nach...';
             
             // Zeige Ladeindikator
             const loadingMessage = document.createElement('div');
             loadingMessage.className = 'message assistant';
-            loadingMessage.innerHTML = '<div class="loading"></div> Claude denkt nach...';
+            loadingMessage.innerHTML = '<div class="loading"></div> KI denkt nach...';
             messagesContainer.appendChild(loadingMessage);
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             
             try {
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                // ⚠️ CLOUDFLARE WORKER API AUFRUF ⚠️
+                const response = await fetch(WORKER_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01'
                     },
                     body: JSON.stringify({
-                        model: 'claude-3-sonnet-20240229',
-                        max_tokens: 1000,
-                        messages: [
-                            {
-                                role: 'system',
-                                content: 'Du bist ein hilfreicher Assistent, der Nutzern beim Testen ihrer Prompting-Fähigkeiten hilft. Gib konstruktives Feedback zu ihren Prompts und zeige, wie sie verbessert werden könnten.'
-                            },
-                            {
-                                role: 'user',
-                                content: message
-                            }
-                        ]
+                        message: message,
+                        history: chatHistory.slice(-10) // Sende nur die letzten 10 Nachrichten
                     })
                 });
                 
                 if (!response.ok) {
-                    throw new Error('API-Anfrage fehlgeschlagen');
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'API-Anfrage fehlgeschlagen');
                 }
                 
                 const data = await response.json();
@@ -644,38 +630,48 @@
                 // Entferne Ladeindikator
                 messagesContainer.removeChild(loadingMessage);
                 
-                // Füge Claude's Antwort hinzu
+                // Füge KI-Antwort hinzu
                 const assistantMessage = document.createElement('div');
                 assistantMessage.className = 'message assistant';
-                assistantMessage.textContent = data.content[0].text;
+                assistantMessage.textContent = data.choices[0].message.content;
                 messagesContainer.appendChild(assistantMessage);
+                
+                // Füge zur Historie hinzu
+                chatHistory.push({ 
+                    role: 'assistant', 
+                    content: data.choices[0].message.content 
+                });
                 
             } catch (error) {
                 messagesContainer.removeChild(loadingMessage);
                 
                 const errorMessage = document.createElement('div');
                 errorMessage.className = 'message system';
-                errorMessage.textContent = 'Fehler: ' + error.message + '. Bitte überprüfe deinen API-Key und versuche es erneut.';
+                errorMessage.innerHTML = `<strong>❌ Fehler:</strong> ${error.message}<br><br>
+                    <em>Mögliche Lösungen:</em><br>
+                    • Stelle sicher, dass die Cloudflare Worker URL korrekt ist<br>
+                    • Prüfe deine Internetverbindung<br>
+                    • Versuche es in ein paar Sekunden erneut`;
                 messagesContainer.appendChild(errorMessage);
+            } finally {
+                input.disabled = false;
+                sendButton.disabled = false;
+                buttonText.textContent = 'Senden';
+                input.focus();
             }
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         function handleKeyPress(event) {
-            if (event.key === 'Enter') {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
                 sendMessage();
             }
         }
 
         // Initialisierung
         updateProgress();
-        
-        // Prüfe ob API-Key bereits gespeichert ist
-        const savedKey = sessionStorage.getItem('anthropic_api_key');
-        if (savedKey) {
-            apiKey = savedKey;
-        }
     </script>
 </body>
 </html>
