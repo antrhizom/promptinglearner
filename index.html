@@ -277,6 +277,172 @@
             padding: 2px 6px;
             border-radius: 4px;
         }
+
+        /* Structured Evaluation Card */
+        .evaluation-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(102, 126, 234, 0.15);
+            overflow: hidden;
+            margin: 10px 0;
+            border: 1px solid #e8eaf6;
+        }
+
+        .eval-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .eval-header h4 {
+            font-size: 1.2em;
+            margin: 0;
+        }
+
+        .eval-score-badge {
+            background: rgba(255,255,255,0.25);
+            padding: 8px 18px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .eval-body {
+            padding: 24px;
+        }
+
+        .eval-section {
+            margin-bottom: 20px;
+        }
+
+        .eval-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .eval-section-title {
+            font-size: 0.85em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #764ba2;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .eval-criteria {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .eval-criterion {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 12px 16px;
+        }
+
+        .eval-criterion-label {
+            font-size: 0.85em;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        .eval-bar-track {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .eval-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.8s ease;
+        }
+
+        .eval-bar-fill.high { background: linear-gradient(90deg, #43a047, #66bb6a); }
+        .eval-bar-fill.medium { background: linear-gradient(90deg, #fb8c00, #ffa726); }
+        .eval-bar-fill.low { background: linear-gradient(90deg, #e53935, #ef5350); }
+
+        .eval-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .eval-list li {
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            line-height: 1.5;
+        }
+
+        .eval-list li.strength {
+            background: #e8f5e9;
+            border-left: 3px solid #43a047;
+            color: #2e7d32;
+        }
+
+        .eval-list li.weakness {
+            background: #fff3e0;
+            border-left: 3px solid #fb8c00;
+            color: #e65100;
+        }
+
+        .eval-list li.tip {
+            background: #e3f2fd;
+            border-left: 3px solid #1976d2;
+            color: #0d47a1;
+        }
+
+        .eval-improved-prompt {
+            background: #f3e5f5;
+            border: 1px solid #ce93d8;
+            border-radius: 10px;
+            padding: 16px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #4a148c;
+            line-height: 1.6;
+        }
+
+        .eval-footer {
+            border-top: 1px solid #e8eaf6;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .pdf-download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .pdf-download-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        @media (max-width: 600px) {
+            .eval-criteria {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -523,6 +689,7 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
     <script>
         let currentSection = 1;
         const totalSections = 8;
@@ -629,17 +796,37 @@
                 
                 // Entferne Ladeindikator
                 messagesContainer.removeChild(loadingMessage);
-                
-                // Füge KI-Antwort hinzu
+
+                const responseText = data.choices[0].message.content;
+
+                // Versuche die Antwort als strukturierte Bewertung zu parsen
+                const evalData = parseEvaluation(responseText);
+
                 const assistantMessage = document.createElement('div');
-                assistantMessage.className = 'message assistant';
-                assistantMessage.textContent = data.choices[0].message.content;
+
+                if (evalData && (evalData.strengths.length > 0 || evalData.weaknesses.length > 0 || evalData.criteria.length > 0)) {
+                    // Strukturierte Bewertung anzeigen
+                    const evalId = 'e' + Date.now();
+                    evalData.userPrompt = message;
+                    evaluations[evalId] = evalData;
+
+                    assistantMessage.className = 'message assistant';
+                    assistantMessage.style.padding = '0';
+                    assistantMessage.style.background = 'transparent';
+                    assistantMessage.style.marginRight = '0';
+                    assistantMessage.innerHTML = renderEvaluation(evalData, message, evalId);
+                } else {
+                    // Normale Antwort
+                    assistantMessage.className = 'message assistant';
+                    assistantMessage.textContent = responseText;
+                }
+
                 messagesContainer.appendChild(assistantMessage);
-                
+
                 // Füge zur Historie hinzu
-                chatHistory.push({ 
-                    role: 'assistant', 
-                    content: data.choices[0].message.content 
+                chatHistory.push({
+                    role: 'assistant',
+                    content: responseText
                 });
                 
             } catch (error) {
@@ -668,6 +855,427 @@
                 event.preventDefault();
                 sendMessage();
             }
+        }
+
+        // Parse AI response into structured evaluation data
+        function parseEvaluation(text) {
+            const eval_ = {
+                score: null,
+                criteria: [],
+                strengths: [],
+                weaknesses: [],
+                tips: [],
+                improvedPrompt: null,
+                rawText: text
+            };
+
+            const lines = text.split('\n');
+            let currentBlock = null;
+
+            // Try to extract a score (look for patterns like "8/10", "Bewertung: 7", "Score: 85%")
+            const scoreMatch = text.match(/(\d{1,2})\s*[\/von]+\s*10/i) || text.match(/(\d{1,3})\s*%/);
+            if (scoreMatch) {
+                let s = parseInt(scoreMatch[1]);
+                if (s > 10) s = Math.round(s / 10); // convert % to /10
+                eval_.score = Math.min(10, Math.max(0, s));
+            }
+
+            // Common criteria keywords to detect
+            const criteriaMap = {
+                'klarheit': 'Klarheit & Praezision',
+                'praezision': 'Klarheit & Praezision',
+                'präzision': 'Klarheit & Praezision',
+                'kontext': 'Kontext',
+                'beispiel': 'Beispiele (Few-Shot)',
+                'few-shot': 'Beispiele (Few-Shot)',
+                'few shot': 'Beispiele (Few-Shot)',
+                'schritt': 'Chain-of-Thought',
+                'chain': 'Chain-of-Thought',
+                'rolle': 'Rollenzuweisung',
+                'persona': 'Rollenzuweisung',
+                'struktur': 'Struktur',
+                'spezifisch': 'Spezifitaet',
+                'spezifität': 'Spezifitaet',
+            };
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                const lower = trimmed.toLowerCase();
+
+                // Detect section headers
+                if (lower.includes('stärke') || lower.includes('staerke') || lower.includes('positiv') || lower.includes('gut gemacht') || lower.includes('was gut')) {
+                    currentBlock = 'strengths';
+                    continue;
+                }
+                if (lower.includes('schwäche') || lower.includes('schwaeche') || lower.includes('verbesserung') || lower.includes('negativ') || lower.includes('was fehlt') || lower.includes('verbessern')) {
+                    currentBlock = 'weaknesses';
+                    continue;
+                }
+                if (lower.includes('tipp') || lower.includes('empfehlung') || lower.includes('vorschlag') || lower.includes('vorschläge')) {
+                    currentBlock = 'tips';
+                    continue;
+                }
+                if (lower.includes('verbesserter prompt') || lower.includes('optimierter prompt') || lower.includes('so könnte') || lower.includes('bessere version') || lower.includes('beispiel für einen besseren')) {
+                    currentBlock = 'improved';
+                    continue;
+                }
+
+                // Extract list items
+                const listItem = trimmed.replace(/^[-•*✅✓❌⚠️💡📌🔹🔸➡️>\d.)\]]+\s*/, '').trim();
+                if (listItem && trimmed.match(/^[-•*✅✓❌⚠️💡📌🔹🔸➡️>\d.)]/)) {
+                    if (currentBlock === 'strengths') eval_.strengths.push(listItem);
+                    else if (currentBlock === 'weaknesses') eval_.weaknesses.push(listItem);
+                    else if (currentBlock === 'tips') eval_.tips.push(listItem);
+                }
+
+                // Improved prompt block
+                if (currentBlock === 'improved' && trimmed && !trimmed.match(/^[-•*#]/)) {
+                    if (eval_.improvedPrompt) eval_.improvedPrompt += '\n' + trimmed;
+                    else eval_.improvedPrompt = trimmed;
+                }
+
+                // Try to extract criteria scores from text like "Klarheit: 8/10" or "Kontext: gut"
+                for (const [keyword, label] of Object.entries(criteriaMap)) {
+                    if (lower.includes(keyword)) {
+                        const crMatch = trimmed.match(/(\d{1,2})\s*[\/von]+\s*10/);
+                        if (crMatch && !eval_.criteria.find(c => c.label === label)) {
+                            eval_.criteria.push({ label: label, score: parseInt(crMatch[1]) });
+                        }
+                    }
+                }
+            }
+
+            // If no structured data found, try to intelligently split the text
+            if (eval_.strengths.length === 0 && eval_.weaknesses.length === 0 && eval_.tips.length === 0) {
+                // Fall back: treat entire text as raw feedback
+                return null;
+            }
+
+            return eval_;
+        }
+
+        // Render structured evaluation HTML
+        function renderEvaluation(eval_, userPrompt, evalId) {
+            let scoreLabel = '';
+            let scoreColor = '';
+            if (eval_.score !== null) {
+                if (eval_.score >= 8) { scoreLabel = 'Ausgezeichnet'; scoreColor = '#43a047'; }
+                else if (eval_.score >= 6) { scoreLabel = 'Gut'; scoreColor = '#fb8c00'; }
+                else if (eval_.score >= 4) { scoreLabel = 'Ausbaufaehig'; scoreColor = '#f57c00'; }
+                else { scoreLabel = 'Verbesserungswuerdig'; scoreColor = '#e53935'; }
+            }
+
+            let html = `<div class="evaluation-card" id="eval-${evalId}">`;
+
+            // Header with score
+            html += `<div class="eval-header">
+                <h4>Prompt-Beurteilung</h4>`;
+            if (eval_.score !== null) {
+                html += `<div class="eval-score-badge">${eval_.score}/10 - ${scoreLabel}</div>`;
+            }
+            html += `</div><div class="eval-body">`;
+
+            // Original prompt
+            html += `<div class="eval-section">
+                <div class="eval-section-title">Dein Prompt</div>
+                <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 8px; font-style: italic; color: #555;">"${userPrompt}"</div>
+            </div>`;
+
+            // Criteria bars
+            if (eval_.criteria.length > 0) {
+                html += `<div class="eval-section">
+                    <div class="eval-section-title">Bewertungskriterien</div>
+                    <div class="eval-criteria">`;
+                for (const c of eval_.criteria) {
+                    const pct = c.score * 10;
+                    const level = c.score >= 7 ? 'high' : c.score >= 4 ? 'medium' : 'low';
+                    html += `<div class="eval-criterion">
+                        <div class="eval-criterion-label">${c.label} <span style="float:right;font-weight:600;">${c.score}/10</span></div>
+                        <div class="eval-bar-track"><div class="eval-bar-fill ${level}" style="width:${pct}%"></div></div>
+                    </div>`;
+                }
+                html += `</div></div>`;
+            }
+
+            // Strengths
+            if (eval_.strengths.length > 0) {
+                html += `<div class="eval-section">
+                    <div class="eval-section-title">Staerken</div>
+                    <ul class="eval-list">`;
+                for (const s of eval_.strengths) {
+                    html += `<li class="strength">${s}</li>`;
+                }
+                html += `</ul></div>`;
+            }
+
+            // Weaknesses
+            if (eval_.weaknesses.length > 0) {
+                html += `<div class="eval-section">
+                    <div class="eval-section-title">Verbesserungspotenzial</div>
+                    <ul class="eval-list">`;
+                for (const w of eval_.weaknesses) {
+                    html += `<li class="weakness">${w}</li>`;
+                }
+                html += `</ul></div>`;
+            }
+
+            // Tips
+            if (eval_.tips.length > 0) {
+                html += `<div class="eval-section">
+                    <div class="eval-section-title">Tipps & Empfehlungen</div>
+                    <ul class="eval-list">`;
+                for (const t of eval_.tips) {
+                    html += `<li class="tip">${t}</li>`;
+                }
+                html += `</ul></div>`;
+            }
+
+            // Improved prompt
+            if (eval_.improvedPrompt) {
+                html += `<div class="eval-section">
+                    <div class="eval-section-title">Verbesserter Prompt-Vorschlag</div>
+                    <div class="eval-improved-prompt">${eval_.improvedPrompt}</div>
+                </div>`;
+            }
+
+            html += `</div>`; // close eval-body
+
+            // Footer with PDF button
+            html += `<div class="eval-footer">
+                <button class="pdf-download-btn" onclick="downloadEvalPDF('${evalId}')">
+                    PDF herunterladen
+                </button>
+            </div>`;
+
+            html += `</div>`; // close evaluation-card
+            return html;
+        }
+
+        // Store evaluations for PDF generation
+        let evaluations = {};
+
+        // Generate PDF from evaluation data
+        function downloadEvalPDF(evalId) {
+            const evalData = evaluations[evalId];
+            if (!evalData) return;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const margin = 20;
+            const contentWidth = pageWidth - 2 * margin;
+            let y = margin;
+
+            // Colors
+            const purple = [102, 126, 234];
+            const darkPurple = [118, 75, 162];
+            const green = [67, 160, 71];
+            const orange = [251, 140, 0];
+            const red = [229, 57, 53];
+            const blue = [25, 118, 210];
+
+            // Helper: add new page if needed
+            function checkPage(needed) {
+                if (y + needed > 280) {
+                    doc.addPage();
+                    y = margin;
+                }
+            }
+
+            // Header background
+            doc.setFillColor(...purple);
+            doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'F');
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Prompt-Beurteilung', margin + 10, y + 13);
+
+            if (evalData.score !== null) {
+                const scoreText = evalData.score + '/10';
+                doc.setFontSize(16);
+                doc.text(scoreText, pageWidth - margin - 10 - doc.getTextWidth(scoreText), y + 13);
+
+                let label = '';
+                if (evalData.score >= 8) label = 'Ausgezeichnet';
+                else if (evalData.score >= 6) label = 'Gut';
+                else if (evalData.score >= 4) label = 'Ausbaufaehig';
+                else label = 'Verbesserungswuerdig';
+                doc.setFontSize(10);
+                doc.text(label, pageWidth - margin - 10 - doc.getTextWidth(label), y + 22);
+            }
+
+            // Date
+            doc.setFontSize(9);
+            const dateStr = new Date().toLocaleDateString('de-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+            doc.text(dateStr, margin + 10, y + 24);
+
+            y += 38;
+
+            // Original prompt
+            doc.setTextColor(118, 75, 162);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('DEIN PROMPT', margin, y);
+            y += 6;
+
+            doc.setFillColor(245, 245, 245);
+            const promptLines = doc.splitTextToSize('"' + evalData.userPrompt + '"', contentWidth - 16);
+            const promptHeight = promptLines.length * 5 + 10;
+            checkPage(promptHeight + 4);
+            doc.roundedRect(margin, y, contentWidth, promptHeight, 2, 2, 'F');
+            doc.setTextColor(85, 85, 85);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'italic');
+            doc.text(promptLines, margin + 8, y + 7);
+            y += promptHeight + 8;
+
+            // Criteria
+            if (evalData.criteria.length > 0) {
+                checkPage(15 + evalData.criteria.length * 14);
+                doc.setTextColor(118, 75, 162);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('BEWERTUNGSKRITERIEN', margin, y);
+                y += 8;
+
+                for (const c of evalData.criteria) {
+                    const barWidth = contentWidth - 50;
+                    const fillWidth = barWidth * (c.score / 10);
+                    const color = c.score >= 7 ? green : c.score >= 4 ? orange : red;
+
+                    doc.setTextColor(51, 51, 51);
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(c.label, margin, y + 3);
+                    doc.text(c.score + '/10', pageWidth - margin - 12, y + 3);
+
+                    // Bar track
+                    doc.setFillColor(224, 224, 224);
+                    doc.roundedRect(margin + 45, y, barWidth, 4, 2, 2, 'F');
+                    // Bar fill
+                    doc.setFillColor(...color);
+                    if (fillWidth > 0) doc.roundedRect(margin + 45, y, fillWidth, 4, 2, 2, 'F');
+                    y += 12;
+                }
+                y += 4;
+            }
+
+            // Strengths
+            if (evalData.strengths.length > 0) {
+                checkPage(12 + evalData.strengths.length * 10);
+                doc.setTextColor(46, 125, 50);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('STAERKEN', margin, y);
+                y += 7;
+
+                for (const s of evalData.strengths) {
+                    const lines = doc.splitTextToSize(s, contentWidth - 14);
+                    const h = lines.length * 5 + 6;
+                    checkPage(h + 2);
+                    doc.setFillColor(232, 245, 233);
+                    doc.roundedRect(margin, y, contentWidth, h, 2, 2, 'F');
+                    doc.setDrawColor(67, 160, 71);
+                    doc.setLineWidth(0.6);
+                    doc.line(margin, y, margin, y + h);
+                    doc.setTextColor(46, 125, 50);
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(lines, margin + 8, y + 5);
+                    y += h + 3;
+                }
+                y += 4;
+            }
+
+            // Weaknesses
+            if (evalData.weaknesses.length > 0) {
+                checkPage(12 + evalData.weaknesses.length * 10);
+                doc.setTextColor(230, 81, 0);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('VERBESSERUNGSPOTENZIAL', margin, y);
+                y += 7;
+
+                for (const w of evalData.weaknesses) {
+                    const lines = doc.splitTextToSize(w, contentWidth - 14);
+                    const h = lines.length * 5 + 6;
+                    checkPage(h + 2);
+                    doc.setFillColor(255, 243, 224);
+                    doc.roundedRect(margin, y, contentWidth, h, 2, 2, 'F');
+                    doc.setDrawColor(251, 140, 0);
+                    doc.setLineWidth(0.6);
+                    doc.line(margin, y, margin, y + h);
+                    doc.setTextColor(230, 81, 0);
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(lines, margin + 8, y + 5);
+                    y += h + 3;
+                }
+                y += 4;
+            }
+
+            // Tips
+            if (evalData.tips.length > 0) {
+                checkPage(12 + evalData.tips.length * 10);
+                doc.setTextColor(13, 71, 161);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('TIPPS & EMPFEHLUNGEN', margin, y);
+                y += 7;
+
+                for (const t of evalData.tips) {
+                    const lines = doc.splitTextToSize(t, contentWidth - 14);
+                    const h = lines.length * 5 + 6;
+                    checkPage(h + 2);
+                    doc.setFillColor(227, 242, 253);
+                    doc.roundedRect(margin, y, contentWidth, h, 2, 2, 'F');
+                    doc.setDrawColor(25, 118, 210);
+                    doc.setLineWidth(0.6);
+                    doc.line(margin, y, margin, y + h);
+                    doc.setTextColor(13, 71, 161);
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(lines, margin + 8, y + 5);
+                    y += h + 3;
+                }
+                y += 4;
+            }
+
+            // Improved prompt
+            if (evalData.improvedPrompt) {
+                const impLines = doc.splitTextToSize(evalData.improvedPrompt, contentWidth - 20);
+                const impH = impLines.length * 5 + 12;
+                checkPage(impH + 14);
+                doc.setTextColor(118, 75, 162);
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'bold');
+                doc.text('VERBESSERTER PROMPT-VORSCHLAG', margin, y);
+                y += 7;
+
+                doc.setFillColor(243, 229, 245);
+                doc.setDrawColor(206, 147, 216);
+                doc.setLineWidth(0.4);
+                doc.roundedRect(margin, y, contentWidth, impH, 2, 2, 'FD');
+                doc.setTextColor(74, 20, 140);
+                doc.setFontSize(9);
+                doc.setFont('courier', 'normal');
+                doc.text(impLines, margin + 10, y + 8);
+                y += impH + 6;
+            }
+
+            // Footer
+            checkPage(12);
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.3);
+            doc.line(margin, 282, pageWidth - margin, 282);
+            doc.setTextColor(150, 150, 150);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Prompting Meisterkurs - Prompt-Beurteilung', margin, 287);
+            doc.text(dateStr, pageWidth - margin - doc.getTextWidth(dateStr), 287);
+
+            doc.save('prompt-beurteilung-' + evalId + '.pdf');
         }
 
         // Initialisierung
