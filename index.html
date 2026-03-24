@@ -717,6 +717,38 @@
         // Store evaluations for PDF generation
         let evaluations = {};
 
+        // Remove emojis and replace with text alternatives for PDF
+        function cleanTextForPDF(text) {
+            // Replace common emojis with text equivalents
+            const replacements = {
+                '\u2B50': '*', '\u2705': '[+]', '\u274C': '[-]', '\u26A0\uFE0F': '[!]',
+                '\u2714\uFE0F': '[+]', '\u2716\uFE0F': '[-]',
+                '\uD83D\uDCA1': '>', '\uD83D\uDCCC': '>', '\uD83D\uDCDD': '>',
+                '\uD83D\uDE80': '>', '\uD83C\uDFAF': '>', '\uD83D\uDC4D': '[+]',
+                '\uD83D\uDC4E': '[-]', '\uD83D\uDD39': '-', '\uD83D\uDD38': '-',
+                '\u27A1\uFE0F': '->', '\u2728': '*', '\uD83D\uDEA8': '[!]',
+                '\uD83E\uDD16': '>', '\uD83C\uDF1F': '*', '\uD83D\uDCAA': '>',
+                '\uD83C\uDF89': '>', '\uD83D\uDCDA': '>', '\uD83D\uDD25': '>',
+            };
+            let cleaned = text;
+            for (const [emoji, replacement] of Object.entries(replacements)) {
+                cleaned = cleaned.split(emoji).join(replacement);
+            }
+            // Remove any remaining emojis (Unicode ranges for emojis)
+            cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1F900}-\u{1F9FF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1FA00}-\u{1FA6F}]/gu, '');
+            cleaned = cleaned.replace(/[\u{1FA70}-\u{1FAFF}]/gu, '');
+            cleaned = cleaned.replace(/[\u{200D}]/gu, '');
+            return cleaned;
+        }
+
         // Generate PDF from evaluation data
         function downloadEvalPDF(evalId) {
             const evalData = evaluations[evalId];
@@ -759,7 +791,7 @@
             y += 6;
 
             doc.setFillColor(245, 245, 245);
-            const promptLines = doc.splitTextToSize(evalData.userPrompt, contentWidth - 16);
+            const promptLines = doc.splitTextToSize(cleanTextForPDF(evalData.userPrompt), contentWidth - 16);
             const promptHeight = promptLines.length * lineHeight + 10;
             checkPage(promptHeight + 4);
             doc.roundedRect(margin, y, contentWidth, promptHeight, 2, 2, 'F');
@@ -780,7 +812,7 @@
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
 
-            const responseLines = doc.splitTextToSize(evalData.responseText, contentWidth - 4);
+            const responseLines = doc.splitTextToSize(cleanTextForPDF(evalData.responseText), contentWidth - 4);
             for (const line of responseLines) {
                 checkPage(lineHeight + 2);
                 doc.text(line, margin + 2, y);
